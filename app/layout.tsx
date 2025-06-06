@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     description: 'Detect and prevent UPI payment scams with FakePay',
     siteName: 'FakePay',
   },
-};
+}; 
 
 export default function RootLayout({
   children,
