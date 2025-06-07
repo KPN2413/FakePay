@@ -6,7 +6,7 @@ import { RISK_LEVELS } from "@/lib/constants"
 interface RiskLevelBadgeProps {
   riskLevel: RiskLevel
 }
-
+ 
 export function RiskLevelBadge({ riskLevel }: RiskLevelBadgeProps) {
   let icon = <Info className="h-4 w-4 mr-1" />
   let variant: "default" | "destructive" | "outline" | "secondary" = "secondary"
