@@ -4,7 +4,7 @@ import { Copy } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 
-interface UpiIdExampleProps {
+interface UpiIdExampleProps { 
   name: string
   id: string
 }
