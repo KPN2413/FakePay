@@ -5,7 +5,7 @@ interface ResultDetailItemProps {
 
 export function ResultDetailItem({ label, value }: ResultDetailItemProps) {
   // Convert boolean values to Yes/No
-  const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value
+  const displayValue = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value 
   
   return (
     <div className="flex justify-between py-2 border-b">
