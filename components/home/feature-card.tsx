@@ -12,7 +12,7 @@ interface FeatureCardProps {
   index: number
 }
 
-export function FeatureCard({ feature, index }: FeatureCardProps) {
+export function FeatureCard({ feature, index }: FeatureCardProps) { 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
