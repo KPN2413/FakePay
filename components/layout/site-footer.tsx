@@ -3,9 +3,9 @@ import { Shield } from "lucide-react";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t py-3">
-      <div className="container flex flex-col items-center justify-between gap-2 md:h-20 md:flex-row">
-        <div className="flex flex-col items-center gap-2 px-4 md:flex-row md:gap-1 md:px-0">
+    <footer className="border-t py-2">
+      <div className="container flex flex-col md:flex-row items-center justify-between gap-2 px-4">
+        <div className="flex flex-col items-center gap-1 md:flex-row md:gap-2">
           <Link href="/" className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
             <span className="font-medium">FakePay</span>
@@ -14,22 +14,22 @@ export function SiteFooter() {
             © 2025 FakePay. All rights reserved.
           </p>
         </div>
-        <div className="flex gap-3 px-4 md:px-0">
+        <div className="flex gap-4 text-sm">
           <Link
             href="/privacy"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="hover:text-primary text-muted-foreground"
           >
             Privacy
           </Link>
           <Link
             href="/terms"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="hover:text-primary text-muted-foreground"
           >
             Terms
           </Link>
           <Link
             href="/contact"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="hover:text-primary text-muted-foreground"
           >
             Contact
           </Link>
