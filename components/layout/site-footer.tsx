@@ -4,7 +4,7 @@ import { Shield } from "lucide-react";
 export function SiteFooter() {
   return (
     <footer className="border-t py-2">
-      <div className="container flex flex-col md:flex-row items-center justify-between gap-2 px-4">
+      <div className="flex w-full flex-col md:flex-row items-center justify-between gap-2 px-4">
         <div className="flex flex-col items-center gap-1 md:flex-row md:gap-2">
           <Link href="/" className="flex items-center gap-2">
             <Shield className="h-5 w-5 text-primary" />
