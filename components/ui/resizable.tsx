@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 const ResizablePanelGroup = ({
   className,
-  ...props
+  ...props 
 }: React.ComponentProps<typeof ResizablePrimitive.PanelGroup>) => (
   <ResizablePrimitive.PanelGroup
     className={cn(
