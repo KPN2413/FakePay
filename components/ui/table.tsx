@@ -12,7 +12,7 @@ const Table = React.forwardRef<
       className={cn('w-full caption-bottom text-sm', className)}
       {...props}
     />
-  </div>
+  </div> 
 ));
 Table.displayName = 'Table';
 
