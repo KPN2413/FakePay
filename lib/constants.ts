@@ -9,7 +9,7 @@ export const UPI_APPS = [
   "Paytm",
   "Amazon Pay",
   "BHIM",
-  "WhatsApp Pay",
+  "WhatsApp Pay", 
   "SBI Pay",
   "ICICI iMobile",
   "HDFC PayZapp",
