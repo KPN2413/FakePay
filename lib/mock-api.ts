@@ -7,7 +7,7 @@ import {
 } from '@/lib/types';
 import { API_RESPONSE_DELAY, UPI_ID_PATTERN } from '@/lib/constants';
 
-// Helper to simulate API delay
+// Helper to simulate API delay 
 const simulateApiDelay = () => 
   new Promise(resolve => setTimeout(resolve, API_RESPONSE_DELAY));
 
