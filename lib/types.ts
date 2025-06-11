@@ -8,7 +8,7 @@ export interface UpiCheckResult {
   riskScore: number; // 0-100
   createdAt: Date;
   details: {
-    providerVerified: boolean;
+    providerVerified: boolean; 
     providerName?: string;
     registeredName?: string;
     accountType?: string;
