@@ -10,7 +10,7 @@ const ContextMenu = ContextMenuPrimitive.Root;
 
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 
-const ContextMenuGroup = ContextMenuPrimitive.Group;
+const ContextMenuGroup = ContextMenuPrimitive.Group; 
 
 const ContextMenuPortal = ContextMenuPrimitive.Portal;
 
