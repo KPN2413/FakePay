@@ -3,15 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import {
-  AlertTriangle,
-  CheckCircle,
-  Info,
-  ArrowLeft,
-  ThumbsUp,
-  ThumbsDown,
-  Loader2,
-} from "lucide-react";
+import { ArrowLeft, Loader2, ThumbsDown, ThumbsUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -175,6 +167,7 @@ export default function ResultsPage() {
               {isImageResult(result) && result.imageUrl && (
                 <ImageUploadPreview url={result.imageUrl} />
               )}
+
               <div className="relative w-full h-4 bg-muted rounded-md">
                 <div
                   className={`absolute top-0 left-0 h-full ${getRiskColor(
@@ -190,6 +183,89 @@ export default function ResultsPage() {
                 </span>
                 <span>Risky</span>
               </div>
+
+              {/* Result details */}
+              {result && "detectedElements" in result && (
+                <div className="space-y-4">
+                  {Object.entries(result.detectedElements || {}).map(
+                    ([label, value]) => (
+                      <ResultDetailItem
+                        key={label}
+                        label={label}
+                        value={value || "—"}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Warnings */}
+              {result.analysisDetails?.warnings?.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-red-600">Warnings</h4>
+                  <ul className="list-disc list-inside text-sm">
+                    {result.analysisDetails.warnings.map((w, idx) => (
+                      <li key={idx}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {result.analysisDetails?.recommendations?.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-green-600">
+                    Recommendations
+                  </h4>
+                  <ul className="list-disc list-inside text-sm">
+                    {result.analysisDetails.recommendations.map((r, idx) => (
+                      <li key={idx}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Feedback Form */}
+              {!feedbackSubmitted && (
+                <div className="pt-4 border-t mt-6">
+                  <h4 className="font-medium mb-2">
+                    Was this analysis helpful?
+                  </h4>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleFeedback(true)}
+                      disabled={submittingFeedback}
+                    >
+                      <ThumbsUp className="w-4 h-4 mr-1" />
+                      Yes
+                    </Button>
+                    <Button
+                      onClick={() => handleFeedback(false)}
+                      disabled={submittingFeedback}
+                      variant="outline"
+                    >
+                      <ThumbsDown className="w-4 h-4 mr-1" />
+                      No
+                    </Button>
+                  </div>
+                  {showFeedbackForm && (
+                    <div className="mt-4">
+                      <Textarea
+                        value={feedbackComment}
+                        onChange={(e) => setFeedbackComment(e.target.value)}
+                        placeholder="Any comments or suggestions?"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Thank You Message */}
+              {feedbackSubmitted && (
+                <div className="text-sm text-green-600 font-medium mt-4">
+                  ✅ Thank you for your feedback!
+                </div>
+              )}
             </CardContent>
 
             <Separator />
