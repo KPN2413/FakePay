@@ -1,3 +1,5 @@
+import { ImageAnalysisResult } from "@/lib/types";
+
 export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
   const formData = new FormData();
   formData.append("file", image);
@@ -48,9 +50,10 @@ export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
   };
 }
 
-
 // Dummy: submitContactForm
-export async function submitContactForm(data: any): Promise<{ success: boolean }> {
+export async function submitContactForm(
+  data: any
+): Promise<{ success: boolean }> {
   console.log("Contact form submitted:", data);
   return { success: true };
 }
