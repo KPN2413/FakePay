@@ -47,3 +47,10 @@ export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
     },
   };
 }
+
+export async function submitContactForm(
+  data: any
+): Promise<{ success: boolean }> {
+  console.log("Received contact form data:", data);
+  return { success: true };
+}
