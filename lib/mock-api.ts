@@ -48,9 +48,47 @@ export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
   };
 }
 
-export async function submitContactForm(
-  data: any
-): Promise<{ success: boolean }> {
-  console.log("Received contact form data:", data);
+
+// Dummy: submitContactForm
+export async function submitContactForm(data: any): Promise<{ success: boolean }> {
+  console.log("Contact form submitted:", data);
   return { success: true };
+}
+
+// Dummy: verifyQrCode
+export async function verifyQrCode(image: File): Promise<any> {
+  console.log("Verifying QR code...");
+  return {
+    id: "qr-" + Date.now().toString(36),
+    details: {
+      isStaticQR: false,
+    },
+    riskLevel: "LOW",
+    riskScore: 10,
+    analysisDetails: {
+      warnings: [],
+      recommendations: ["Looks safe"],
+    },
+  };
+}
+
+// Dummy: submitFeedback
+export async function submitFeedback(data: any): Promise<{ success: boolean }> {
+  console.log("Feedback submitted:", data);
+  return { success: true };
+}
+
+// Dummy: checkUpiId
+export async function checkUpiId(upiId: string): Promise<any> {
+  console.log("Checking UPI ID:", upiId);
+  return {
+    id: "upi-" + Date.now().toString(36),
+    upiId,
+    riskLevel: "LOW",
+    riskScore: 15,
+    analysisDetails: {
+      warnings: [],
+      recommendations: ["UPI looks safe"],
+    },
+  };
 }
