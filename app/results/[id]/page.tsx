@@ -424,4 +424,5 @@ export default function ResultsPage() {
         </motion.div>
       </div>
     </div>
-  );
+  )
+}
