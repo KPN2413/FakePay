@@ -71,20 +71,20 @@ export async function verifyQrCode(image: File): Promise<QrCodeResult> {
     }
   );
 
-  if (!response.ok) {
-    throw new Error("Failed to analyze QR code");
-  }
+  if (!response.ok) throw new Error("Failed to analyze QR code");
 
   const data = await response.json();
 
   return {
     id: `qr-${Date.now().toString(36)}`,
     upiId: data.upi_handle ?? "N/A",
-    amount: data.amount ?? undefined, // if available
+    amount: data.amount ?? undefined,
     riskLevel: data.final_verdict === "Suspicious" ? "HIGH" : "LOW",
     riskScore: Math.round(data.visual_anomaly_score * 100),
+    isValid: data.final_verdict === "Clean", // ✅ Add this
+    createdAt: new Date().toISOString(), // ✅ Add this
     details: {
-      isStaticQR: data.qr_type === "static", // adjust if needed
+      isStaticQR: data.qr_type === "static",
       merchantName: data.merchant ?? "Unverified Service",
       warnings: data.is_blacklisted
         ? ["UPI ID is blacklisted"]
@@ -98,6 +98,7 @@ export async function verifyQrCode(image: File): Promise<QrCodeResult> {
     },
   };
 }
+
 
 export async function submitFeedback(data: {
   resultId: string;
