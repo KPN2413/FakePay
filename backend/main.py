@@ -23,7 +23,7 @@ app.add_middleware(
 # === Load ResNet18 Model ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = models.resnet18(num_classes=2).to(device)
-model.load_state_dict(torch.load("resnet18_qr_classifier.pth", map_location=device))
+model.load_state_dict(torch.load("qr_classifier_resnet18.pth", map_location=device))
 model.eval()
 
 transform = transforms.Compose([
@@ -116,3 +116,4 @@ async def submit_feedback(data: Feedback):
 import uvicorn
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
+
