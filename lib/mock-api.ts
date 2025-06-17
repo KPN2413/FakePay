@@ -1,4 +1,4 @@
-import { ImageAnalysisResult } from "@/lib/types";
+import { ImageAnalysisResult, QrCodeResult } from "@/lib/types";
 
 export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
   const formData = new FormData();
