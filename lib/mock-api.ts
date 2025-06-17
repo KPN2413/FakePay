@@ -82,7 +82,7 @@ export async function verifyQrCode(image: File): Promise<QrCodeResult> {
     riskLevel: data.final_verdict === "Suspicious" ? "HIGH" : "LOW",
     riskScore: Math.round(data.visual_anomaly_score * 100),
     isValid: data.final_verdict === "Clean", // ✅ Add this
-    createdAt: new Date().toISOString(), // ✅ Add this
+    createdAt: new Date(),
     details: {
       isStaticQR: data.qr_type === "static",
       merchantName: data.merchant ?? "Unverified Service",
