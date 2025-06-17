@@ -2,16 +2,16 @@ from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 import torch
 import torch.nn as nn
-from torchvision import transforms
-from pyzbar.pyzbar import decode
+from torchvision import models, transforms
 from PIL import Image
+from pyzbar.pyzbar import decode
+from pydantic import BaseModel
 import io
 import re
-from pydantic import BaseModel
 
 app = FastAPI()
 
-# Allow CORS for frontend calls
+# === CORS Middleware ===
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,37 +20,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === AutoEncoder Model Definition ===
-class AutoEncoder(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(1, 16, 3, stride=2, padding=1), nn.ReLU(),
-            nn.Conv2d(16, 32, 3, stride=2, padding=1), nn.ReLU(),
-            nn.Conv2d(32, 64, 3, stride=2, padding=1), nn.ReLU()
-        )
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(64, 32, 3, stride=2, padding=1, output_padding=1), nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=1, output_padding=1), nn.ReLU(),
-            nn.ConvTranspose2d(16, 1, 3, stride=2, padding=1, output_padding=1), nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        return self.decoder(self.encoder(x))
-
-# === Load Model ===
+# === Load ResNet18 Model ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = AutoEncoder().to(device)
-model.load_state_dict(torch.load("qr_autoencoder.pth", map_location=device))
+model = models.resnet18(num_classes=2).to(device)
+model.load_state_dict(torch.load("resnet18_qr_classifier.pth", map_location=device))
 model.eval()
 
 transform = transforms.Compose([
-    transforms.Resize((128, 128)),
-    transforms.ToTensor()
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
 ])
 
-# === UPI Blacklist ===
 blacklist = {'fraud123@paytm', 'donation@upi', 'moneyhelp@okaxis'}
+class_names = ['fake', 'real']
 
 # === QR Decode ===
 def decode_qr_from_bytes(file_bytes):
@@ -67,45 +49,41 @@ def extract_upi_handle(qr_text):
     match = re.search(r'pa=([a-zA-Z0-9._\-]+@[a-zA-Z]+)', qr_text)
     return match.group(1) if match else None
 
-# === Visual Score ===
-def calculate_visual_score(file_bytes):
-    img = Image.open(io.BytesIO(file_bytes)).convert("L")
+# === Predict QR Real or Fake ===
+def predict_qr(file_bytes):
+    img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
     img_tensor = transform(img).unsqueeze(0).to(device)
     with torch.no_grad():
-        recon = model(img_tensor)
-        loss = nn.functional.mse_loss(recon, img_tensor)
-        return loss.item()
+        outputs = model(img_tensor)
+        probs = torch.softmax(outputs, dim=1)
+        pred = torch.argmax(probs, dim=1).item()
+    return class_names[pred], float(probs[0][pred])
 
-# === API Endpoints ===
+# === API: Scan QR ===
 @app.post("/scan_qr/")
 async def scan_qr(file: UploadFile = File(...)):
     file_bytes = await file.read()
-
+    label, confidence = predict_qr(file_bytes)
     qr_text = decode_qr_from_bytes(file_bytes)
     upi_handle = extract_upi_handle(qr_text) if qr_text else None
     is_blacklisted = upi_handle in blacklist if upi_handle else False
-    visual_score = calculate_visual_score(file_bytes)
 
-    result = {
+    return {
+        "label": label,
+        "confidence": round(confidence, 4),
         "upi_handle": upi_handle,
         "is_blacklisted": is_blacklisted,
-        "visual_anomaly_score": round(visual_score, 5),
-        "qr_type": "static" if visual_score < 0.01 else "anomaly",
-        "merchant": "Merchant XYZ" if upi_handle else None,
-        "final_verdict": "Suspicious" if is_blacklisted or visual_score > 0.01 else "Clean"
+        "riskLevel": "HIGH" if is_blacklisted or label == "fake" else "LOW",
+        "riskScore": 90 if is_blacklisted else (80 if label == "fake" else 10),
+        "details": {
+            "merchantName": "Merchant XYZ" if upi_handle else None,
+            "warnings": ["Blacklisted UPI"] if is_blacklisted else [],
+            "recommendations": ["Avoid payment"] if is_blacklisted else ["Looks safe"]
+        },
+        "final_verdict": "Suspicious" if is_blacklisted or label == "fake" else "Clean"
     }
-    return result
 
-class Feedback(BaseModel):
-    resultId: str
-    wasHelpful: bool
-    comments: str | None = None
-
-@app.post("/submit_feedback/")
-async def submit_feedback(data: Feedback):
-    print("Feedback received:", data.dict())
-    return {"success": True}
-
+# === API: Check UPI ID ===
 @app.get("/check_upi/")
 async def check_upi(upiId: str):
     is_blacklisted = upiId in blacklist
@@ -123,7 +101,18 @@ async def check_upi(upiId: str):
         }
     }
 
-import uvicorn
+# === API: Submit Feedback ===
+class Feedback(BaseModel):
+    resultId: str
+    wasHelpful: bool
+    comments: str | None = None
 
+@app.post("/submit_feedback/")
+async def submit_feedback(data: Feedback):
+    print("Feedback received:", data.dict())
+    return {"success": True}
+
+# === Uvicorn Dev Runner ===
+import uvicorn
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
