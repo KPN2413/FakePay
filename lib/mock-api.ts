@@ -23,42 +23,24 @@ export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
     imageUrl: URL.createObjectURL(image),
     detectedElements: {
       isUpiInterface: true,
-      appName: "Unknown", // You can fill these if backend returns more info
+      appName: "Unknown",
       upiId: data.upi_handle,
-      amount: undefined, // If you're not detecting amount yet
+      amount: undefined,
       merchantName: undefined,
       timestamp: new Date().toISOString(),
     },
-    riskLevel: data.final_verdict === "Suspicious" ? "HIGH" : "LOW",
-    riskScore: Math.round(data.visual_anomaly_score * 100), // scale to 0–100
+    riskLevel:
+      data.riskLevel ?? (data.final_verdict === "Suspicious" ? "HIGH" : "LOW"),
+    riskScore: data.riskScore ?? Math.round(data.visual_anomaly_score * 100),
     analysisDetails: {
       isKnownInterface: true,
       interfaceAnomalies: [],
-      warnings: data.is_blacklisted
-        ? ["UPI ID is blacklisted"]
-        : data.visual_anomaly_score > 0.01
-        ? ["Visual tampering detected"]
-        : [],
-      recommendations:
-        data.final_verdict === "Suspicious"
-          ? [
-              "Do not proceed with payment",
-              "Verify with sender before trusting",
-            ]
-          : ["This QR appears safe"],
+      warnings: data.details?.warnings ?? [],
+      recommendations: data.details?.recommendations ?? [],
     },
   };
 }
 
-// Dummy: submitContactForm
-export async function submitContactForm(
-  data: any
-): Promise<{ success: boolean }> {
-  console.log("Contact form submitted:", data);
-  return { success: true };
-}
-
-// Dummy: verifyQrCode
 export async function verifyQrCode(image: File): Promise<QrCodeResult> {
   const formData = new FormData();
   formData.append("file", image);
@@ -79,26 +61,26 @@ export async function verifyQrCode(image: File): Promise<QrCodeResult> {
     id: `qr-${Date.now().toString(36)}`,
     upiId: data.upi_handle ?? "N/A",
     amount: data.amount ?? undefined,
-    riskLevel: data.final_verdict === "Suspicious" ? "HIGH" : "LOW",
-    riskScore: Math.round(data.visual_anomaly_score * 100),
-    isValid: data.final_verdict === "Clean", // ✅ Add this
+    riskLevel:
+      data.riskLevel ?? (data.final_verdict === "Suspicious" ? "HIGH" : "LOW"),
+    riskScore: data.riskScore ?? Math.round(data.visual_anomaly_score * 100),
+    isValid: data.final_verdict === "Clean",
     createdAt: new Date(),
     details: {
       isStaticQR: data.qr_type === "static",
-      merchantName: data.merchant ?? "Unverified Service",
-      warnings: data.is_blacklisted
-        ? ["UPI ID is blacklisted"]
-        : data.visual_anomaly_score > 0.1
-        ? ["Visual anomalies detected"]
-        : [],
+      merchantName:
+        data.details?.merchantName ?? data.merchant ?? "Unverified Service",
+      warnings:
+        data.details?.warnings ??
+        (data.is_blacklisted ? ["UPI ID is blacklisted"] : []),
       recommendations:
-        data.final_verdict === "Suspicious"
+        data.details?.recommendations ??
+        (data.final_verdict === "Suspicious"
           ? ["Do not proceed", "Verify merchant first"]
-          : ["This QR appears safe"],
+          : ["This QR appears safe"]),
     },
   };
 }
-
 
 export async function submitFeedback(data: {
   resultId: string;
