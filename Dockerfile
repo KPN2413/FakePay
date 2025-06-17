@@ -10,12 +10,13 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy entire project contents
-COPY . .
-
-# Install Python packages from your backend requirements file
+# === ✅ Speed Optimizer: cache dependencies ===
+COPY backend/requirements.txt ./backend/requirements.txt
 RUN pip install --upgrade pip
 RUN pip install -r backend/requirements.txt
+
+# Copy entire project contents AFTER installing deps
+COPY . .
 
 # Expose port (same as in start command)
 EXPOSE 10000
