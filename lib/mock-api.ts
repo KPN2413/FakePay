@@ -59,39 +59,71 @@ export async function submitContactForm(
 }
 
 // Dummy: verifyQrCode
-export async function verifyQrCode(image: File): Promise<any> {
-  console.log("Verifying QR code...");
+export async function verifyQrCode(image: File): Promise<QrCodeResult> {
+  const formData = new FormData();
+  formData.append("file", image);
+
+  const response = await fetch(
+    "https://fakepay-backend.onrender.com/scan_qr/",
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to analyze QR code");
+  }
+
+  const data = await response.json();
+
   return {
-    id: "qr-" + Date.now().toString(36),
+    id: `qr-${Date.now().toString(36)}`,
+    upiId: data.upi_handle ?? "N/A",
+    amount: data.amount ?? undefined, // if available
+    riskLevel: data.final_verdict === "Suspicious" ? "HIGH" : "LOW",
+    riskScore: Math.round(data.visual_anomaly_score * 100),
     details: {
-      isStaticQR: false,
-    },
-    riskLevel: "LOW",
-    riskScore: 10,
-    analysisDetails: {
-      warnings: [],
-      recommendations: ["Looks safe"],
+      isStaticQR: data.qr_type === "static", // adjust if needed
+      merchantName: data.merchant ?? "Unverified Service",
+      warnings: data.is_blacklisted
+        ? ["UPI ID is blacklisted"]
+        : data.visual_anomaly_score > 0.1
+        ? ["Visual anomalies detected"]
+        : [],
+      recommendations:
+        data.final_verdict === "Suspicious"
+          ? ["Do not proceed", "Verify merchant first"]
+          : ["This QR appears safe"],
     },
   };
 }
 
-// Dummy: submitFeedback
-export async function submitFeedback(data: any): Promise<{ success: boolean }> {
-  console.log("Feedback submitted:", data);
-  return { success: true };
+export async function submitFeedback(data: {
+  resultId: string;
+  wasHelpful: boolean;
+  comments?: string;
+}): Promise<{ success: boolean }> {
+  const response = await fetch(
+    "https://fakepay-backend.onrender.com/submit_feedback/",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (!response.ok) throw new Error("Failed to submit feedback");
+
+  return await response.json();
 }
 
-// Dummy: checkUpiId
 export async function checkUpiId(upiId: string): Promise<any> {
-  console.log("Checking UPI ID:", upiId);
-  return {
-    id: "upi-" + Date.now().toString(36),
-    upiId,
-    riskLevel: "LOW",
-    riskScore: 15,
-    analysisDetails: {
-      warnings: [],
-      recommendations: ["UPI looks safe"],
-    },
-  };
+  const response = await fetch(
+    `https://fakepay-backend.onrender.com/check_upi/?upiId=${upiId}`
+  );
+
+  if (!response.ok) throw new Error("Failed to check UPI");
+
+  return await response.json();
 }

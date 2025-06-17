@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 import torch
@@ -8,6 +7,7 @@ from pyzbar.pyzbar import decode
 from PIL import Image
 import io
 import re
+from pydantic import BaseModel
 
 app = FastAPI()
 
@@ -76,7 +76,7 @@ def calculate_visual_score(file_bytes):
         loss = nn.functional.mse_loss(recon, img_tensor)
         return loss.item()
 
-# === API ===
+# === API Endpoints ===
 @app.post("/scan_qr/")
 async def scan_qr(file: UploadFile = File(...)):
     file_bytes = await file.read()
@@ -90,8 +90,35 @@ async def scan_qr(file: UploadFile = File(...)):
         "upi_handle": upi_handle,
         "is_blacklisted": is_blacklisted,
         "visual_anomaly_score": round(visual_score, 5),
-        "qr_type": "anomaly" if visual_score > 0.01 else "known-fake",
+        "qr_type": "static" if visual_score < 0.01 else "anomaly",
+        "merchant": "Merchant XYZ" if upi_handle else None,
         "final_verdict": "Suspicious" if is_blacklisted or visual_score > 0.01 else "Clean"
     }
-
     return result
+
+class Feedback(BaseModel):
+    resultId: str
+    wasHelpful: bool
+    comments: str | None = None
+
+@app.post("/submit_feedback/")
+async def submit_feedback(data: Feedback):
+    print("Feedback received:", data.dict())
+    return {"success": True}
+
+@app.get("/check_upi/")
+async def check_upi(upiId: str):
+    is_blacklisted = upiId in blacklist
+    return {
+        "id": "upi-" + upiId,
+        "upiId": upiId,
+        "riskLevel": "HIGH" if is_blacklisted else "LOW",
+        "riskScore": 75 if is_blacklisted else 10,
+        "details": {
+            "providerVerified": not is_blacklisted,
+            "providerName": "Paytm" if "paytm" in upiId else "Unknown",
+            "registeredName": None if is_blacklisted else "Merchant XYZ",
+            "warnings": ["Blacklisted UPI"] if is_blacklisted else [],
+            "recommendations": ["Avoid payment"] if is_blacklisted else ["Proceed with caution"]
+        }
+    }
