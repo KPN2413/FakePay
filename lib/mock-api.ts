@@ -110,3 +110,10 @@ export async function checkUpiId(upiId: string): Promise<any> {
 
   return await response.json();
 }
+
+export async function submitContactForm(
+  data: any
+): Promise<{ success: boolean }> {
+  console.log("Contact form submitted:", data);
+  return { success: true };
+}
