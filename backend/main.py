@@ -122,3 +122,8 @@ async def check_upi(upiId: str):
             "recommendations": ["Avoid payment"] if is_blacklisted else ["Proceed with caution"]
         }
     }
+
+import uvicorn
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=10000, reload=False)
