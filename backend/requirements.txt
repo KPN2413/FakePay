@@ -3,5 +3,6 @@ uvicorn
 torch
 torchvision
 pillow
-pyzbar
 python-multipart
+pyzbar
+pydantic
