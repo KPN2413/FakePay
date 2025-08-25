@@ -75,7 +75,7 @@ def _infer(model, img: Image.Image) -> Dict:
         class_id = int(torch.tensor(probs).argmax().item())
         score = float(max(probs))
     # assume class 0 = real, 1 = fake (change if your labels differ)
-    label = "fake" if class_id == 1 else "real"
+    label = "fake" if class_id == 0 else "real"
     return {"class_id": class_id, "label": label, "score": score}
 
 @router.post("/predict/qr")
