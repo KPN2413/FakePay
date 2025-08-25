@@ -1,9 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${process.env.API_BASE_URL}/:path*`,
+      },
+    ];
   },
-  images: { unoptimized: true },
 };
-
 module.exports = nextConfig;
