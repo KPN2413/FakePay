@@ -1,22 +1,40 @@
+// lib/mock-api.ts
 import { ImageAnalysisResult, QrCodeResult } from "@/lib/types";
 
-export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
-  const formData = new FormData();
-  formData.append("file", image);
+/**
+ * Small helper to POST an image as multipart/form-data with field name "file".
+ * The Next.js rewrite proxies /api/* to your Render backend.
+ */
+async function postImage(endpoint: string, file: File) {
+  const fd = new FormData();
+  fd.append("file", file); // MUST be "file" (FastAPI parameter name)
 
-  const response = await fetch(
-    "https://fakepay-backend.onrender.com/scan_qr/",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
+  const res = await fetch(endpoint, {
+    method: "POST",
+    body: fd,
+    cache: "no-store",
+  });
 
-  if (!response.ok) {
-    throw new Error("Failed to analyze screenshot");
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`Backend ${res.status}: ${msg || "request failed"}`);
   }
+  return res.json();
+}
 
-  const data = await response.json();
+/**
+ * Screenshot analysis (full app UI). We map backend {class_id,label,score}
+ * to your ImageAnalysisResult shape.
+ */
+export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
+  // if your screenshot model is the "UPI" detector, use /api/predict/upi
+  const data = await postImage("/api/predict/upi", image);
+  // backend returns: { class_id, label, score } where score is 0–1
+  const label: "real" | "fake" =
+    (data.label as "real" | "fake") ??
+    (data.class_id === 1 ? "fake" : "real");
+  const riskScore = Math.round(((data.score ?? 0) as number) * 100);
+  const riskLevel = label === "fake" ? "HIGH" : "LOW";
 
   return {
     id: `img-${Date.now().toString(36)}`,
@@ -24,96 +42,86 @@ export async function analyzeImage(image: File): Promise<ImageAnalysisResult> {
     detectedElements: {
       isUpiInterface: true,
       appName: "Unknown",
-      upiId: data.upi_handle,
+      upiId: undefined,
       amount: undefined,
       merchantName: undefined,
       timestamp: new Date().toISOString(),
     },
-    riskLevel:
-      data.riskLevel ?? (data.final_verdict === "Suspicious" ? "HIGH" : "LOW"),
-    riskScore: data.riskScore ?? Math.round(data.visual_anomaly_score * 100),
+    riskLevel,
+    riskScore,
     analysisDetails: {
       isKnownInterface: true,
       interfaceAnomalies: [],
-      warnings: data.details?.warnings ?? [],
-      recommendations: data.details?.recommendations ?? [],
+      warnings: [],
+      recommendations:
+        label === "fake"
+          ? ["Do not proceed", "Verify the source before paying"]
+          : ["No issues detected"],
     },
   };
 }
 
+/**
+ * QR image verification. Returns your QrCodeResult shape.
+ */
 export async function verifyQrCode(image: File): Promise<QrCodeResult> {
-  const formData = new FormData();
-  formData.append("file", image);
-
-  const response = await fetch(
-    "https://fakepay-backend.onrender.com/scan_qr/",
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-
-  if (!response.ok) throw new Error("Failed to analyze QR code");
-
-  const data = await response.json();
+  const data = await postImage("/api/predict/qr", image);
+  const label: "real" | "fake" =
+    (data.label as "real" | "fake") ??
+    (data.class_id === 1 ? "fake" : "real");
+  const riskScore = Math.round(((data.score ?? 0) as number) * 100);
 
   return {
     id: `qr-${Date.now().toString(36)}`,
-    upiId: data.upi_handle ?? "N/A",
-    amount: data.amount ?? undefined,
-    riskLevel:
-      data.riskLevel ?? (data.final_verdict === "Suspicious" ? "HIGH" : "LOW"),
-    riskScore: data.riskScore ?? Math.round(data.visual_anomaly_score * 100),
-    isValid: data.final_verdict === "Clean",
+    upiId: data.upi_handle ?? "N/A", // keep if UI expects it; backend may not send
+    amount: undefined,
+    riskLevel: label === "fake" ? "HIGH" : "LOW",
+    riskScore,
+    isValid: label === "real",
     createdAt: new Date(),
     details: {
-      isStaticQR: data.qr_type === "static",
-      merchantName:
-        data.details?.merchantName ?? data.merchant ?? "Unverified Service",
-      warnings:
-        data.details?.warnings ??
-        (data.is_blacklisted ? ["UPI ID is blacklisted"] : []),
+      isStaticQR: true,
+      merchantName: "Unverified Service",
+      warnings: label === "fake" ? ["Potentially fraudulent QR"] : [],
       recommendations:
-        data.details?.recommendations ??
-        (data.final_verdict === "Suspicious"
+        label === "fake"
           ? ["Do not proceed", "Verify merchant first"]
-          : ["This QR appears safe"]),
+          : ["This QR appears safe"],
     },
   };
 }
 
-export async function submitFeedback(data: {
+/**
+ * No backend route yet; keep as a no-op so UI doesn't break during demo.
+ * If you later add a FastAPI route, swap this to POST /api/feedback (etc).
+ */
+export async function submitFeedback(_data: {
   resultId: string;
   wasHelpful: boolean;
   comments?: string;
 }): Promise<{ success: boolean }> {
-  const response = await fetch(
-    "https://fakepay-backend.onrender.com/submit_feedback/",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }
-  );
-
-  if (!response.ok) throw new Error("Failed to submit feedback");
-
-  return await response.json();
+  // For now, succeed locally.
+  return { success: true };
 }
 
+/**
+ * Your current backend doesn’t expose a text-based UPI check endpoint.
+ * Return a minimal object so /upi-check page can render without crashing.
+ * Replace with a real fetch when you add an API route.
+ */
 export async function checkUpiId(upiId: string): Promise<any> {
-  const response = await fetch(
-    `https://fakepay-backend.onrender.com/check_upi/?upiId=${upiId}`
-  );
-
-  if (!response.ok) throw new Error("Failed to check UPI");
-
-  return await response.json();
+  return {
+    upiId,
+    exists: true,
+    isBlacklisted: false,
+    lastChecked: new Date().toISOString(),
+  };
 }
 
-export async function submitContactForm(
-  data: any
-): Promise<{ success: boolean }> {
-  console.log("Contact form submitted:", data);
+/**
+ * Contact form: keep local success for now.
+ * Replace with a POST to a backend route or email service later.
+ */
+export async function submitContactForm(_data: any): Promise<{ success: boolean }> {
   return { success: true };
 }
