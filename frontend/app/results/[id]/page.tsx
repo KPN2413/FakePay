@@ -154,10 +154,10 @@ export default function ResultsPage() {
                 />
               </div>
               <div className="flex justify-between text-sm">
-  <span>Safe</span>
-  <span>Risky</span>
-</div>
-
+                <span>Safe</span>
+                <span className="font-medium">Score: {result.riskScore}%</span>
+                <span>Risky</span>
+              </div>
 
               {/* Details */}
               <div className="space-y-4">
