@@ -192,9 +192,9 @@ export default function ResultsPage() {
               ></div>
             </div>
             <div className="flex justify-between text-sm">
-              <span>Safe</span>
-              <span className="font-medium">Risk Score: {result.riskScore}%</span>
               <span>Risky</span>
+              <span className="font-medium">Score: {result.riskScore}%</span>
+              <span>Safe</span>
             </div>
             
             {/* Result Details */}
