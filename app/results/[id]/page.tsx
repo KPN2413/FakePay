@@ -1,5 +1,5 @@
 "use client"
- 
+
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { motion } from "framer-motion"
@@ -26,7 +26,7 @@ export default function ResultsPage() {
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [feedbackComment, setFeedbackComment] = useState("")
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
-  
+
   useEffect(() => {
     // Get stored result from sessionStorage
     const storedResult = sessionStorage.getItem('analysisResult') || 
@@ -57,7 +57,7 @@ export default function ResultsPage() {
     
     setLoading(false)
   }, [params.id, router])
-  
+
   const handleFeedback = async (wasHelpful: boolean) => {
     if (result) {
       setSubmittingFeedback(true)
@@ -80,19 +80,19 @@ export default function ResultsPage() {
       }
     }
   }
-  
+
   const isImageResult = (result: any): result is ImageAnalysisResult => {
     return result && 'imageUrl' in result
   }
-  
+
   const isQrResult = (result: any): result is QrCodeResult => {
     return result && 'details' in result && 'isStaticQR' in result.details
   }
-  
+
   const isUpiResult = (result: any): result is UpiCheckResult => {
     return result && 'upiId' in result && !('imageUrl' in result) && !('isStaticQR' in result?.details)
   }
-  
+
   if (loading) {
     return (
       <div className="container py-12 flex items-center justify-center">
@@ -103,7 +103,7 @@ export default function ResultsPage() {
       </div>
     )
   }
-  
+
   if (!result) {
     return (
       <div className="container py-12">
@@ -124,7 +124,7 @@ export default function ResultsPage() {
       </div>
     )
   }
-  
+
   // Determine risk color based on risk level
   const getRiskColor = (riskLevel: string) => {
     switch (riskLevel) {
@@ -138,7 +138,7 @@ export default function ResultsPage() {
         return 'secondary'
     }
   }
-  
+
   // Get icon based on risk level
   const getRiskIcon = (riskLevel: string) => {
     switch (riskLevel) {
@@ -152,7 +152,24 @@ export default function ResultsPage() {
         return <Info className="h-5 w-5 text-muted-foreground" />
     }
   }
-  
+
+  // ---------- NEEDFUL CHANGES START ----------
+  // 1) Swap results: invert displayed risk level (HIGH <-> LOW). MEDIUM stays as is.
+  const displayRiskLevel =
+    result.riskLevel === 'HIGH' ? 'LOW'
+    : result.riskLevel === 'LOW' ? 'HIGH'
+    : result.riskLevel
+
+  // 2) Swap the colours in the score bar: red <-> green (MEDIUM unchanged).
+  const scoreBarClass =
+    displayRiskLevel === 'HIGH'
+      ? 'bg-green-500'      // swapped: HIGH now green
+      : displayRiskLevel === 'MEDIUM'
+      ? 'bg-amber-500'
+      : 'bg-destructive'    // swapped: LOW now red
+  // 3) Top-right small output badge uses inverted level via RiskLevelBadge below.
+  // ---------- NEEDFUL CHANGES END ----------
+
   return (
     <div className="container py-12 max-w-3xl">
       <motion.div
@@ -164,7 +181,8 @@ export default function ResultsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-2xl">Analysis Result</CardTitle>
-              <RiskLevelBadge riskLevel={result.riskLevel} />
+              {/* Use inverted level so top-right badge matches the swap */}
+              <RiskLevelBadge riskLevel={displayRiskLevel} />
             </div>
             <CardDescription>
               {isImageResult(result) && "Analysis of your payment screenshot"}
@@ -172,22 +190,17 @@ export default function ResultsPage() {
               {isUpiResult(result) && "Analysis of the UPI ID"}
             </CardDescription>
           </CardHeader>
+
           <CardContent className="space-y-6">
             {/* Preview image if available */}
             {isImageResult(result) && result.imageUrl && (
               <ImageUploadPreview url={result.imageUrl} />
             )}
-            
-            {/* Risk Score */}
+
+            {/* Risk Score (colour mapping swapped) */}
             <div className="w-full bg-muted rounded-full h-4 overflow-hidden">
-              <div 
-                className={`h-full ${
-                  result.riskLevel === 'HIGH'
-                    ? 'bg-destructive'
-                    : result.riskLevel === 'MEDIUM'
-                    ? 'bg-amber-500'
-                    : 'bg-green-500'
-                }`}
+              <div
+                className={`h-full ${scoreBarClass}`}
                 style={{ width: `${result.riskScore}%` }}
               ></div>
             </div>
@@ -196,11 +209,11 @@ export default function ResultsPage() {
               <span className="font-medium">Score: {result.riskScore}%</span>
               <span>Safe</span>
             </div>
-            
+
             {/* Result Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Details</h3>
-              
+
               {isImageResult(result) && (
                 <>
                   <ResultDetailItem 
@@ -233,7 +246,7 @@ export default function ResultsPage() {
                   )}
                 </>
               )}
-              
+
               {isQrResult(result) && (
                 <>
                   {result.upiId && (
@@ -260,7 +273,7 @@ export default function ResultsPage() {
                   )}
                 </>
               )}
-              
+
               {isUpiResult(result) && (
                 <>
                   <ResultDetailItem 
@@ -290,7 +303,7 @@ export default function ResultsPage() {
                 </>
               )}
             </div>
-            
+
             {/* Warnings */}
             {((isImageResult(result) && result.analysisDetails.warnings?.length) ||
              (isQrResult(result) && result.details.warnings?.length) ||
@@ -313,7 +326,7 @@ export default function ResultsPage() {
                 </ul>
               </div>
             )}
-            
+
             {/* Recommendations */}
             {((isImageResult(result) && result.analysisDetails.recommendations?.length) ||
              (isQrResult(result) && result.details.recommendations?.length) ||
@@ -336,7 +349,7 @@ export default function ResultsPage() {
                 </ul>
               </div>
             )}
-            
+
             {/* Feedback Form */}
             {!feedbackSubmitted && !showFeedbackForm && (
               <div className="pt-4">
@@ -367,7 +380,7 @@ export default function ResultsPage() {
                 </div>
               </div>
             )}
-            
+
             {showFeedbackForm && (
               <div className="pt-2">
                 <Textarea
@@ -402,14 +415,16 @@ export default function ResultsPage() {
                 </div>
               </div>
             )}
-            
+
             {feedbackSubmitted && (
               <p className="text-sm text-muted-foreground pt-2">
                 Thank you for your feedback!
               </p>
             )}
           </CardContent>
+
           <Separator />
+
           <CardFooter className="flex justify-between pt-6">
             <Button variant="outline" onClick={() => router.back()}>
               <ArrowLeft className="mr-2 h-4 w-4" />
