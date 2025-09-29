@@ -32,14 +32,12 @@ export default function ResultsPage() {
   const [lastError, setLastError] = useState<string | null>(null)
   const [sourceKey, setSourceKey] = useState<string | null>(null)
 
-  // ---- Robust reader: try all keys; don't hard-fail on ID mismatch; surface errors; normalise riskLevel.
   useEffect(() => {
     try {
       const keys = ["analysisResult", "qrVerifyResult", "upiCheckResult"] as const
       let chosen: any = null
       let chosenKey: string | null = null
 
-      // Optional: read any previously stored error from the upload/API page
       const possibleError = sessionStorage.getItem("lastAnalysisError")
       if (possibleError) {
         try { setLastError(JSON.parse(possibleError)?.message ?? String(possibleError)) } catch { setLastError(possibleError) }
@@ -50,30 +48,24 @@ export default function ResultsPage() {
         if (!raw) continue
         try {
           const obj = JSON.parse(raw)
-          // minimal shape check
           if (obj && (obj.riskLevel !== undefined || obj.riskScore !== undefined || obj.details || obj.analysisDetails)) {
             chosen = obj
             chosenKey = k
             break
           }
-        } catch {
-          // keep scanning next key
-        }
+        } catch {}
       }
 
       if (!chosen) {
         setLoading(false)
-        // Don't redirect; show a friendly message in UI.
         toast.error("No analysis result found")
         return
       }
 
-      // normalise risk level
       if (typeof chosen.riskLevel === "string") {
         chosen.riskLevel = chosen.riskLevel.toUpperCase()
       }
 
-      // keep info for debug
       setSourceKey(chosenKey)
       setResult(chosen)
     } catch (err) {
@@ -120,7 +112,6 @@ export default function ResultsPage() {
     )
   }
 
-  // ---------- Swap logic (your requirement) ----------
   // 1) Swap HIGH <-> LOW for displayed risk level (MEDIUM stays)
   const displayRiskLevel =
     (result?.riskLevel === "HIGH") ? "LOW"
@@ -134,8 +125,6 @@ export default function ResultsPage() {
       : displayRiskLevel === "MEDIUM"
       ? "bg-amber-500"
       : "bg-destructive"
-
-  // 3) Top-right badge is fed with the inverted level via RiskLevelBadge below
 
   if (!result) {
     return (
@@ -188,7 +177,7 @@ export default function ResultsPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* DEBUG BLOCk (only when ?debug=1) */}
+            {/* DEBUG (when ?debug=1) */}
             {debugMode && (
               <div className="text-xs rounded-md border p-3">
                 <div><b>Debug:</b></div>
@@ -232,13 +221,13 @@ export default function ResultsPage() {
                   {(result as ImageAnalysisResult).detectedElements.appName && (
                     <ResultDetailItem 
                       label="App Name" 
-                      value={(result as ImageAnalysisResult).detectedElements.appName} 
+                      value={String((result as ImageAnalysisResult).detectedElements.appName ?? "")} 
                     />
                   )}
                   {(result as ImageAnalysisResult).detectedElements.upiId && (
                     <ResultDetailItem 
                       label="UPI ID" 
-                      value={(result as ImageAnalysisResult).detectedElements.upiId} 
+                      value={String((result as ImageAnalysisResult).detectedElements.upiId ?? "")} 
                     />
                   )}
                   {(result as ImageAnalysisResult).detectedElements.amount && (
@@ -250,7 +239,7 @@ export default function ResultsPage() {
                   {(result as ImageAnalysisResult).detectedElements.merchantName && (
                     <ResultDetailItem 
                       label="Merchant Name" 
-                      value={(result as ImageAnalysisResult).detectedElements.merchantName} 
+                      value={String((result as ImageAnalysisResult).detectedElements.merchantName ?? "")} 
                     />
                   )}
                 </>
@@ -261,7 +250,7 @@ export default function ResultsPage() {
                   {(result as QrCodeResult).upiId && (
                     <ResultDetailItem 
                       label="UPI ID" 
-                      value={(result as QrCodeResult).upiId} 
+                      value={String((result as QrCodeResult).upiId ?? "")} 
                     />
                   )}
                   <ResultDetailItem 
@@ -277,7 +266,7 @@ export default function ResultsPage() {
                   {(result as QrCodeResult).details.merchantName && (
                     <ResultDetailItem 
                       label="Merchant Name" 
-                      value={(result as QrCodeResult).details.merchantName!} 
+                      value={String((result as QrCodeResult).details.merchantName ?? "")} 
                     />
                   )}
                 </>
@@ -287,7 +276,7 @@ export default function ResultsPage() {
                 <>
                   <ResultDetailItem 
                     label="UPI ID" 
-                    value={(result as UpiCheckResult).upiId} 
+                    value={String((result as UpiCheckResult).upiId ?? "")} 
                   />
                   <ResultDetailItem 
                     label="Valid Format" 
@@ -300,13 +289,13 @@ export default function ResultsPage() {
                   {(result as UpiCheckResult).details.providerName && (
                     <ResultDetailItem 
                       label="Provider" 
-                      value={(result as UpiCheckResult).details.providerName!} 
+                      value={String((result as UpiCheckResult).details.providerName ?? "")} 
                     />
                   )}
                   {(result as UpiCheckResult).details.registeredName && (
                     <ResultDetailItem 
                       label="Registered Name" 
-                      value={(result as UpiCheckResult).details.registeredName!} 
+                      value={String((result as UpiCheckResult).details.registeredName ?? "")} 
                     />
                   )}
                 </>
