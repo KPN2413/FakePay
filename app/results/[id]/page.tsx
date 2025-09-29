@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useEffect, useMemo, useState } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { AlertTriangle, CheckCircle, Info, ArrowLeft, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react"
 import { toast } from "sonner"
@@ -20,70 +20,79 @@ type ResultType = ImageAnalysisResult | QrCodeResult | UpiCheckResult
 export default function ResultsPage() {
   const router = useRouter()
   const params = useParams()
+  const search = useSearchParams()
+  const debugMode = useMemo(() => search.get("debug") === "1", [search])
+
   const [result, setResult] = useState<ResultType | null>(null)
   const [loading, setLoading] = useState(true)
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false)
   const [showFeedbackForm, setShowFeedbackForm] = useState(false)
   const [feedbackComment, setFeedbackComment] = useState("")
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
+  const [lastError, setLastError] = useState<string | null>(null)
+  const [sourceKey, setSourceKey] = useState<string | null>(null)
 
+  // ---- Robust reader: try all keys; don't hard-fail on ID mismatch; surface errors; normalise riskLevel.
   useEffect(() => {
-  try {
-    // Try all known keys
-    const keys = ['analysisResult', 'qrVerifyResult', 'upiCheckResult'] as const;
-    let parsedResult: any = null;
+    try {
+      const keys = ["analysisResult", "qrVerifyResult", "upiCheckResult"] as const
+      let chosen: any = null
+      let chosenKey: string | null = null
 
-    for (const k of keys) {
-      const raw = sessionStorage.getItem(k);
-      if (raw) {
-        try {
-          const obj = JSON.parse(raw);
-          // use the *first* valid-looking payload
-          if (obj && (obj.riskLevel || obj.riskScore !== undefined)) {
-            parsedResult = obj;
-            break;
-          }
-        } catch { /* ignore one bad item; try next */ }
+      // Optional: read any previously stored error from the upload/API page
+      const possibleError = sessionStorage.getItem("lastAnalysisError")
+      if (possibleError) {
+        try { setLastError(JSON.parse(possibleError)?.message ?? String(possibleError)) } catch { setLastError(possibleError) }
       }
-    }
 
-    if (!parsedResult) {
-      toast.error("No analysis result found");
-      router.push('/');
-      return;
-    }
+      for (const k of keys) {
+        const raw = sessionStorage.getItem(k)
+        if (!raw) continue
+        try {
+          const obj = JSON.parse(raw)
+          // minimal shape check
+          if (obj && (obj.riskLevel !== undefined || obj.riskScore !== undefined || obj.details || obj.analysisDetails)) {
+            chosen = obj
+            chosenKey = k
+            break
+          }
+        } catch {
+          // keep scanning next key
+        }
+      }
 
-    // Normalise riskLevel to uppercase to avoid mapping issues later
-    if (typeof parsedResult.riskLevel === 'string') {
-      parsedResult.riskLevel = parsedResult.riskLevel.toUpperCase();
-    }
+      if (!chosen) {
+        setLoading(false)
+        // Don't redirect; show a friendly message in UI.
+        toast.error("No analysis result found")
+        return
+      }
 
-    // Be tolerant: if id mismatches, still show the result but warn
-    if (parsedResult.id && params?.id && parsedResult.id !== params.id) {
-      toast.warning("Showing latest result (ID mismatch)");
-    }
+      // normalise risk level
+      if (typeof chosen.riskLevel === "string") {
+        chosen.riskLevel = chosen.riskLevel.toUpperCase()
+      }
 
-    setResult(parsedResult);
-  } catch (err) {
-    console.error("Error reading result:", err);
-    toast.error("Something went wrong");
-    router.push('/');
-  } finally {
-    setLoading(false);
-  }
-}, [params?.id, router]);
+      // keep info for debug
+      setSourceKey(chosenKey)
+      setResult(chosen)
+    } catch (err) {
+      console.error("Result read error:", err)
+      toast.error("Something went wrong while reading the result")
+    } finally {
+      setLoading(false)
+    }
+  }, [params?.id])
 
   const handleFeedback = async (wasHelpful: boolean) => {
     if (result) {
       setSubmittingFeedback(true)
-      
       try {
         await submitFeedback({
-          resultId: result.id,
+          resultId: (result as any).id,
           wasHelpful,
           comments: feedbackComment
         })
-        
         setFeedbackSubmitted(true)
         toast.success("Thank you for your feedback!")
       } catch (error) {
@@ -96,17 +105,9 @@ export default function ResultsPage() {
     }
   }
 
-  const isImageResult = (result: any): result is ImageAnalysisResult => {
-    return result && 'imageUrl' in result
-  }
-
-  const isQrResult = (result: any): result is QrCodeResult => {
-    return result && 'details' in result && 'isStaticQR' in result.details
-  }
-
-  const isUpiResult = (result: any): result is UpiCheckResult => {
-    return result && 'upiId' in result && !('imageUrl' in result) && !('isStaticQR' in result?.details)
-  }
+  const isImageResult = (r: any): r is ImageAnalysisResult => r && "imageUrl" in r
+  const isQrResult = (r: any): r is QrCodeResult => r && "details" in r && "isStaticQR" in r.details
+  const isUpiResult = (r: any): r is UpiCheckResult => r && "upiId" in r && !("imageUrl" in r) && !("isStaticQR" in r?.details)
 
   if (loading) {
     return (
@@ -119,6 +120,23 @@ export default function ResultsPage() {
     )
   }
 
+  // ---------- Swap logic (your requirement) ----------
+  // 1) Swap HIGH <-> LOW for displayed risk level (MEDIUM stays)
+  const displayRiskLevel =
+    (result?.riskLevel === "HIGH") ? "LOW"
+    : (result?.riskLevel === "LOW") ? "HIGH"
+    : (result?.riskLevel ?? "LOW")
+
+  // 2) Score bar colours swapped: HIGH→green, LOW→red, MEDIUM stays amber
+  const scoreBarClass =
+    displayRiskLevel === "HIGH"
+      ? "bg-green-500"
+      : displayRiskLevel === "MEDIUM"
+      ? "bg-amber-500"
+      : "bg-destructive"
+
+  // 3) Top-right badge is fed with the inverted level via RiskLevelBadge below
+
   if (!result) {
     return (
       <div className="container py-12">
@@ -129,61 +147,24 @@ export default function ResultsPage() {
               We couldn't find the analysis result you're looking for.
             </CardDescription>
           </CardHeader>
-          <CardFooter>
+          {lastError && (
+            <CardContent>
+              <div className="text-sm text-destructive">Error: {lastError}</div>
+            </CardContent>
+          )}
+          <CardFooter className="flex gap-2">
             <Button onClick={() => router.push('/')}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Return Home
+            </Button>
+            <Button variant="outline" onClick={() => location.reload()}>
+              Retry
             </Button>
           </CardFooter>
         </Card>
       </div>
     )
   }
-
-  // Determine risk color based on risk level
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'HIGH':
-        return 'destructive'
-      case 'MEDIUM':
-        return 'amber-500'
-      case 'LOW':
-        return 'green-500'
-      default:
-        return 'secondary'
-    }
-  }
-
-  // Get icon based on risk level
-  const getRiskIcon = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'HIGH':
-        return <AlertTriangle className="h-5 w-5 text-destructive" />
-      case 'MEDIUM':
-        return <AlertTriangle className="h-5 w-5 text-amber-500" />
-      case 'LOW':
-        return <CheckCircle className="h-5 w-5 text-green-500" />
-      default:
-        return <Info className="h-5 w-5 text-muted-foreground" />
-    }
-  }
-
-  // ---------- NEEDFUL CHANGES START ----------
-  // 1) Swap results: invert displayed risk level (HIGH <-> LOW). MEDIUM stays as is.
-  const displayRiskLevel =
-    result.riskLevel === 'HIGH' ? 'LOW'
-    : result.riskLevel === 'LOW' ? 'HIGH'
-    : result.riskLevel
-
-  // 2) Swap the colours in the score bar: red <-> green (MEDIUM unchanged).
-  const scoreBarClass =
-    displayRiskLevel === 'HIGH'
-      ? 'bg-green-500'      // swapped: HIGH now green
-      : displayRiskLevel === 'MEDIUM'
-      ? 'bg-amber-500'
-      : 'bg-destructive'    // swapped: LOW now red
-  // 3) Top-right small output badge uses inverted level via RiskLevelBadge below.
-  // ---------- NEEDFUL CHANGES END ----------
 
   return (
     <div className="container py-12 max-w-3xl">
@@ -196,7 +177,7 @@ export default function ResultsPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-2xl">Analysis Result</CardTitle>
-              {/* Use inverted level so top-right badge matches the swap */}
+              {/* Inverted level as requested */}
               <RiskLevelBadge riskLevel={displayRiskLevel} />
             </div>
             <CardDescription>
@@ -207,25 +188,38 @@ export default function ResultsPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Preview image if available */}
-            {isImageResult(result) && result.imageUrl && (
-              <ImageUploadPreview url={result.imageUrl} />
+            {/* DEBUG BLOCk (only when ?debug=1) */}
+            {debugMode && (
+              <div className="text-xs rounded-md border p-3">
+                <div><b>Debug:</b></div>
+                <div>params.id: {String((params as any)?.id ?? "")}</div>
+                <div>sourceKey: {String(sourceKey ?? "")}</div>
+                <div>riskLevel(raw): {String((result as any)?.riskLevel)}</div>
+                <div>riskLevel(displayed): {displayRiskLevel}</div>
+                <div>riskScore: {String((result as any)?.riskScore)}</div>
+                {lastError && <div className="text-destructive">lastError: {lastError}</div>}
+              </div>
             )}
 
-            {/* Risk Score (colour mapping swapped) */}
+            {/* Preview image if available */}
+            {isImageResult(result) && (result as ImageAnalysisResult).imageUrl && (
+              <ImageUploadPreview url={(result as ImageAnalysisResult).imageUrl} />
+            )}
+
+            {/* Risk Score bar with swapped colours */}
             <div className="w-full bg-muted rounded-full h-4 overflow-hidden">
               <div
                 className={`h-full ${scoreBarClass}`}
-                style={{ width: `${result.riskScore}%` }}
+                style={{ width: `${(result as any).riskScore ?? 0}%` }}
               ></div>
             </div>
             <div className="flex justify-between text-sm">
               <span>Risky</span>
-              <span className="font-medium">Score: {result.riskScore}%</span>
+              <span className="font-medium">Score: {(result as any).riskScore ?? 0}%</span>
               <span>Safe</span>
             </div>
 
-            {/* Result Details */}
+            {/* Details */}
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Details</h3>
 
@@ -233,30 +227,30 @@ export default function ResultsPage() {
                 <>
                   <ResultDetailItem 
                     label="UPI Interface Detected" 
-                    value={result.detectedElements.isUpiInterface ? "Yes" : "No"} 
+                    value={(result as ImageAnalysisResult).detectedElements.isUpiInterface ? "Yes" : "No"} 
                   />
-                  {result.detectedElements.appName && (
+                  {(result as ImageAnalysisResult).detectedElements.appName && (
                     <ResultDetailItem 
                       label="App Name" 
-                      value={result.detectedElements.appName} 
+                      value={(result as ImageAnalysisResult).detectedElements.appName} 
                     />
                   )}
-                  {result.detectedElements.upiId && (
+                  {(result as ImageAnalysisResult).detectedElements.upiId && (
                     <ResultDetailItem 
                       label="UPI ID" 
-                      value={result.detectedElements.upiId} 
+                      value={(result as ImageAnalysisResult).detectedElements.upiId} 
                     />
                   )}
-                  {result.detectedElements.amount && (
+                  {(result as ImageAnalysisResult).detectedElements.amount && (
                     <ResultDetailItem 
                       label="Amount" 
-                      value={`₹${result.detectedElements.amount.toLocaleString()}`} 
+                      value={`₹${(result as ImageAnalysisResult).detectedElements.amount.toLocaleString()}`} 
                     />
                   )}
-                  {result.detectedElements.merchantName && (
+                  {(result as ImageAnalysisResult).detectedElements.merchantName && (
                     <ResultDetailItem 
                       label="Merchant Name" 
-                      value={result.detectedElements.merchantName} 
+                      value={(result as ImageAnalysisResult).detectedElements.merchantName} 
                     />
                   )}
                 </>
@@ -264,26 +258,26 @@ export default function ResultsPage() {
 
               {isQrResult(result) && (
                 <>
-                  {result.upiId && (
+                  {(result as QrCodeResult).upiId && (
                     <ResultDetailItem 
                       label="UPI ID" 
-                      value={result.upiId} 
+                      value={(result as QrCodeResult).upiId} 
                     />
                   )}
                   <ResultDetailItem 
                     label="QR Type" 
-                    value={result.details.isStaticQR ? "Static" : "Dynamic"} 
+                    value={(result as QrCodeResult).details.isStaticQR ? "Static" : "Dynamic"} 
                   />
-                  {result.amount && (
+                  {(result as QrCodeResult).amount && (
                     <ResultDetailItem 
                       label="Amount" 
-                      value={`₹${result.amount.toLocaleString()}`} 
+                      value={`₹${(result as QrCodeResult).amount!.toLocaleString()}`} 
                     />
                   )}
-                  {result.details.merchantName && (
+                  {(result as QrCodeResult).details.merchantName && (
                     <ResultDetailItem 
                       label="Merchant Name" 
-                      value={result.details.merchantName} 
+                      value={(result as QrCodeResult).details.merchantName!} 
                     />
                   )}
                 </>
@@ -293,26 +287,26 @@ export default function ResultsPage() {
                 <>
                   <ResultDetailItem 
                     label="UPI ID" 
-                    value={result.upiId} 
+                    value={(result as UpiCheckResult).upiId} 
                   />
                   <ResultDetailItem 
                     label="Valid Format" 
-                    value={result.isValid ? "Yes" : "No"} 
+                    value={(result as UpiCheckResult).isValid ? "Yes" : "No"} 
                   />
                   <ResultDetailItem 
                     label="Provider Verified" 
-                    value={result.details.providerVerified ? "Yes" : "No"} 
+                    value={(result as UpiCheckResult).details.providerVerified ? "Yes" : "No"} 
                   />
-                  {result.details.providerName && (
+                  {(result as UpiCheckResult).details.providerName && (
                     <ResultDetailItem 
                       label="Provider" 
-                      value={result.details.providerName} 
+                      value={(result as UpiCheckResult).details.providerName!} 
                     />
                   )}
-                  {result.details.registeredName && (
+                  {(result as UpiCheckResult).details.registeredName && (
                     <ResultDetailItem 
                       label="Registered Name" 
-                      value={result.details.registeredName} 
+                      value={(result as UpiCheckResult).details.registeredName!} 
                     />
                   )}
                 </>
@@ -320,22 +314,22 @@ export default function ResultsPage() {
             </div>
 
             {/* Warnings */}
-            {((isImageResult(result) && result.analysisDetails.warnings?.length) ||
-             (isQrResult(result) && result.details.warnings?.length) ||
-             (isUpiResult(result) && result.details.warnings?.length)) && (
+            {((isImageResult(result) && (result as ImageAnalysisResult).analysisDetails.warnings?.length) ||
+             (isQrResult(result) && (result as QrCodeResult).details.warnings?.length) ||
+             (isUpiResult(result) && (result as UpiCheckResult).details.warnings?.length)) && (
               <div className="bg-destructive/10 p-4 rounded-md">
                 <h3 className="text-lg font-medium flex items-center text-destructive mb-2">
                   <AlertTriangle className="h-5 w-5 mr-2" />
                   Warnings
                 </h3>
                 <ul className="list-disc list-inside space-y-1">
-                  {isImageResult(result) && result.analysisDetails.warnings?.map((warning, index) => (
+                  {isImageResult(result) && (result as ImageAnalysisResult).analysisDetails.warnings?.map((warning, index) => (
                     <li key={index} className="text-sm">{warning}</li>
                   ))}
-                  {isQrResult(result) && result.details.warnings?.map((warning, index) => (
+                  {isQrResult(result) && (result as QrCodeResult).details.warnings?.map((warning, index) => (
                     <li key={index} className="text-sm">{warning}</li>
                   ))}
-                  {isUpiResult(result) && result.details.warnings?.map((warning, index) => (
+                  {isUpiResult(result) && (result as UpiCheckResult).details.warnings?.map((warning, index) => (
                     <li key={index} className="text-sm">{warning}</li>
                   ))}
                 </ul>
@@ -343,22 +337,22 @@ export default function ResultsPage() {
             )}
 
             {/* Recommendations */}
-            {((isImageResult(result) && result.analysisDetails.recommendations?.length) ||
-             (isQrResult(result) && result.details.recommendations?.length) ||
-             (isUpiResult(result) && result.details.recommendations?.length)) && (
+            {((isImageResult(result) && (result as ImageAnalysisResult).analysisDetails.recommendations?.length) ||
+             (isQrResult(result) && (result as QrCodeResult).details.recommendations?.length) ||
+             (isUpiResult(result) && (result as UpiCheckResult).details.recommendations?.length)) && (
               <div className="bg-primary/10 p-4 rounded-md">
                 <h3 className="text-lg font-medium flex items-center text-primary mb-2">
                   <Info className="h-5 w-5 mr-2" />
                   Recommendations
                 </h3>
                 <ul className="list-disc list-inside space-y-1">
-                  {isImageResult(result) && result.analysisDetails.recommendations?.map((rec, index) => (
+                  {isImageResult(result) && (result as ImageAnalysisResult).analysisDetails.recommendations?.map((rec, index) => (
                     <li key={index} className="text-sm">{rec}</li>
                   ))}
-                  {isQrResult(result) && result.details.recommendations?.map((rec, index) => (
+                  {isQrResult(result) && (result as QrCodeResult).details.recommendations?.map((rec, index) => (
                     <li key={index} className="text-sm">{rec}</li>
                   ))}
-                  {isUpiResult(result) && result.details.recommendations?.map((rec, index) => (
+                  {isUpiResult(result) && (result as UpiCheckResult).details.recommendations?.map((rec, index) => (
                     <li key={index} className="text-sm">{rec}</li>
                   ))}
                 </ul>
