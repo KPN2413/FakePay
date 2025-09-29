@@ -233,7 +233,7 @@ export default function ResultsPage() {
                   {(result as ImageAnalysisResult).detectedElements.amount && (
                     <ResultDetailItem 
                       label="Amount" 
-                      value={`₹${(result as ImageAnalysisResult).detectedElements.amount.toLocaleString()}`} 
+                      value={`₹${(((result as ImageAnalysisResult).detectedElements.amount ?? 0) as number).toLocaleString()}`} 
                     />
                   )}
                   {(result as ImageAnalysisResult).detectedElements.merchantName && (
@@ -257,10 +257,10 @@ export default function ResultsPage() {
                     label="QR Type" 
                     value={(result as QrCodeResult).details.isStaticQR ? "Static" : "Dynamic"} 
                   />
-                  {(result as QrCodeResult).amount && (
+                  {typeof (result as QrCodeResult).amount === "number" && (
                     <ResultDetailItem 
                       label="Amount" 
-                      value={`₹${(result as QrCodeResult).amount!.toLocaleString()}`} 
+                      value={`₹${(((result as QrCodeResult).amount as number)).toLocaleString()}`} 
                     />
                   )}
                   {(result as QrCodeResult).details.merchantName && (
