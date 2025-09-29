@@ -28,35 +28,50 @@ export default function ResultsPage() {
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
 
   useEffect(() => {
-    // Get stored result from sessionStorage
-    const storedResult = sessionStorage.getItem('analysisResult') || 
-                        sessionStorage.getItem('qrVerifyResult') || 
-                        sessionStorage.getItem('upiCheckResult')
-    
-    if (storedResult) {
-      try {
-        const parsedResult = JSON.parse(storedResult)
-        
-        // Verify this is the correct result based on the ID in the URL
-        if (parsedResult.id === params.id) {
-          setResult(parsedResult)
-        } else {
-          // Wrong result ID, redirect to home
-          toast.error("Result not found")
-          router.push('/')
-        }
-      } catch (error) {
-        console.error("Error parsing result:", error)
-        toast.error("Something went wrong")
+  try {
+    // Try all known keys
+    const keys = ['analysisResult', 'qrVerifyResult', 'upiCheckResult'] as const;
+    let parsedResult: any = null;
+
+    for (const k of keys) {
+      const raw = sessionStorage.getItem(k);
+      if (raw) {
+        try {
+          const obj = JSON.parse(raw);
+          // use the *first* valid-looking payload
+          if (obj && (obj.riskLevel || obj.riskScore !== undefined)) {
+            parsedResult = obj;
+            break;
+          }
+        } catch { /* ignore one bad item; try next */ }
       }
-    } else {
-      // No result found, redirect to home
-      toast.error("No analysis result found")
-      router.push('/')
     }
-    
-    setLoading(false)
-  }, [params.id, router])
+
+    if (!parsedResult) {
+      toast.error("No analysis result found");
+      router.push('/');
+      return;
+    }
+
+    // Normalise riskLevel to uppercase to avoid mapping issues later
+    if (typeof parsedResult.riskLevel === 'string') {
+      parsedResult.riskLevel = parsedResult.riskLevel.toUpperCase();
+    }
+
+    // Be tolerant: if id mismatches, still show the result but warn
+    if (parsedResult.id && params?.id && parsedResult.id !== params.id) {
+      toast.warning("Showing latest result (ID mismatch)");
+    }
+
+    setResult(parsedResult);
+  } catch (err) {
+    console.error("Error reading result:", err);
+    toast.error("Something went wrong");
+    router.push('/');
+  } finally {
+    setLoading(false);
+  }
+}, [params?.id, router]);
 
   const handleFeedback = async (wasHelpful: boolean) => {
     if (result) {
